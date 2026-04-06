@@ -1,10 +1,14 @@
 "use client";
+
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import * as htmlToImage from "html-to-image";
 
 // 🌸 ข้อมูลผลลัพธ์
-const flowerData: Record<string, { emoji: string; title: string; desc: string }> = {
+const flowerData: Record<
+  string,
+  { emoji: string; title: string; desc: string }
+> = {
   rose: {
     emoji: "🌹",
     title: "คุณคือกุหลาบ",
@@ -44,60 +48,85 @@ export default function ResultPage() {
 
   useEffect(() => {
     const data = localStorage.getItem("result");
-    if (!data) router.push("/");
-    else setResult(data);
-  }, []);
 
-  // 📸 บันทึกรูป
+    if (!data) {
+      router.push("/");
+    } else {
+      setResult(data);
+    }
+  }, [router]);
+
+  // 📸 ตรวจว่าเป็นมือถือหรือไม่
+  const isMobile = () => {
+    if (typeof window === "undefined") return false;
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  };
+
+  // 📸 export image
   const handleDownloadImage = async () => {
     if (!captureRef.current) return;
 
-    const dataUrl = await htmlToImage.toPng(captureRef.current, {
-      pixelRatio: 2,
-    });
+    try {
+      const blob = await htmlToImage.toBlob(captureRef.current, {
+        pixelRatio: 2,
+      });
 
-    const link = document.createElement("a");
-    link.download = "ig-story.png";
-    link.href = dataUrl;
-    link.click();
+      if (!blob) return;
+
+      const file = new File([blob], "ig-story.png", {
+        type: "image/png",
+      });
+
+      // 📱 มือถือ → Share (Save to Photos)
+      if (isMobile() && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "IG Story",
+          text: "My result",
+        });
+        return;
+      }
+
+      // 💻 คอม → download แบบเดิม (ง่ายสุด)
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "ig-story.png";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export image error:", error);
+    }
   };
 
   if (!result) return null;
+
   const data = flowerData[result];
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-
-      {/* 📱 IG STORY 9:16 */}
+      {/* 📱 IG STORY */}
       <div
         ref={captureRef}
         className="relative w-[360px] h-[640px] rounded-3xl overflow-hidden shadow-2xl"
       >
-        {/* 🌸 Background image */}
         <div className="absolute inset-0 bg-[url('/flower1.jpg')] bg-cover bg-center" />
-
-        {/* 🔥 overlay blur */}
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-        {/* CONTENT */}
         <div className="relative flex flex-col items-center justify-center h-full text-center px-6 text-white">
-          
           <div className="text-7xl mb-4">{data.emoji}</div>
 
-          <h1 className="text-3xl font-bold mb-3">
-            {data.title}
-          </h1>
+          <h1 className="text-3xl font-bold mb-3">{data.title}</h1>
 
-          <p className="text-sm opacity-90 mb-8">
-            {data.desc}
-          </p>
+          <p className="text-sm opacity-90 mb-8">{data.desc}</p>
 
           <div className="text-xs opacity-80">
             เล่นได้ที่เว็บไซต์นี้ 👇
           </div>
         </div>
 
-        {/* 🔖 CREDIT */}
         <span className="absolute bottom-3 right-4 text-[10px] text-white/70">
           @dd0rnor & kkimmyz
         </span>
@@ -116,7 +145,7 @@ export default function ResultPage() {
           onClick={handleDownloadImage}
           className="bg-pink-500 text-white px-5 py-2 rounded-xl"
         >
-          บันทึก IG Story
+          บันทึก / ดาวน์โหลด
         </button>
       </div>
     </div>
